@@ -6,11 +6,6 @@ import { HelpCircle, ChevronRight, ChevronLeft, X, Sparkles } from 'lucide-react
 
 const steps = [
   {
-    title: "👋 Chào mừng bạn đến với DuoTech!",
-    content: "DuoTech thiết lập hệ thống giúp bạn dễ dàng báo cáo đơn hàng và nhận hoa hồng 7% tự động. Hãy dành 1 phút để xem qua hướng dẫn sử dụng nhé!",
-    selector: null
-  },
-  {
     title: "📊 Bảng điều khiển",
     content: "Đây là thanh Menu quản lý. Tại đây bạn có thể chuyển đổi giữa các trang: Tổng quan, Báo đơn mới, Danh sách đơn hàng, Quản lý hoa hồng và Hồ sơ cá nhân của mình.",
     selector: ".dash-sidebar"
@@ -188,7 +183,7 @@ export default function OnboardingTour() {
       <div className="tour-popover" style={popoverStyle}>
         <div className="tour-popover-header">
           <div className="tour-popover-title">
-            {stepIndex === 0 || stepIndex === steps.length - 1 ? (
+            {!currentStep.selector ? (
               <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Sparkles size={16} style={{ color: 'var(--dt-orange)' }} /> {currentStep.title}
               </span>
