@@ -14,7 +14,7 @@ export async function PATCH(request, { params }) {
     await connectDB();
     const { id } = await params;
     const body = await request.json();
-    const { status, note } = body;
+    const { status, note, billImage, paidNote } = body;
 
     const admin = await User.findOne({ email: session.user.email });
 
@@ -27,6 +27,8 @@ export async function PATCH(request, { params }) {
       commission.status = 'paid';
       commission.paidAt = new Date();
       commission.paidBy = admin._id;
+      if (billImage) commission.billImage = billImage;
+      if (paidNote) commission.paidNote = paidNote;
     }
     if (note !== undefined) commission.note = note;
 

@@ -6,9 +6,18 @@ const CommissionSchema = new mongoose.Schema({
     ref: 'Order',
     required: true,
   },
+  projectId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
+    default: null,
+  },
   orderCode: {
     type: String,
     required: true,
+  },
+  projectCode: {
+    type: String,
+    default: '',
   },
   ctvId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -27,7 +36,7 @@ const CommissionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'paid'],
+    enum: ['pending', 'paid', 'cancelled'],
     default: 'pending',
   },
   paidAt: {
@@ -39,6 +48,14 @@ const CommissionSchema = new mongoose.Schema({
     ref: 'User',
     default: null,
   },
+  paidNote: {
+    type: String,
+    default: '',
+  },
+  billImage: {
+    type: String,
+    default: '',
+  },
   note: {
     type: String,
     default: '',
@@ -49,6 +66,11 @@ const CommissionSchema = new mongoose.Schema({
 
 CommissionSchema.index({ ctvId: 1, createdAt: -1 });
 CommissionSchema.index({ orderId: 1 });
+CommissionSchema.index({ projectId: 1 });
 CommissionSchema.index({ status: 1 });
+
+if (mongoose.models.Commission) {
+  delete mongoose.models.Commission;
+}
 
 export default mongoose.models.Commission || mongoose.model('Commission', CommissionSchema);

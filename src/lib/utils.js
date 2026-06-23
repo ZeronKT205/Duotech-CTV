@@ -36,15 +36,21 @@ export const WEBSITE_TYPES = {
 };
 
 export const ORDER_STATUS = {
-  pending: { label: 'Chờ xử lý', color: 'yellow' },
-  consulting: { label: 'Đang tư vấn', color: 'blue' },
-  contracted: { label: 'Đã ký HĐ', color: 'purple' },
-  in_progress: { label: 'Đang triển khai', color: 'orange' },
-  completed: { label: 'Hoàn thành', color: 'green' },
-  cancelled: { label: 'Đã hủy', color: 'red' },
+  pending: { label: 'Cần xử lý', color: 'yellow' },
+  approved: { label: 'Tạo dự án thành công', color: 'green' },
+  rejected: { label: 'Tạo dự án thất bại', color: 'red' },
+};
+
+export const PROJECT_STATUS = {
+  consulting: { label: 'Đang tư vấn', color: 'blue', progress: 20 },
+  contracted: { label: 'Đã ký HĐ', color: 'purple', progress: 40 },
+  in_progress: { label: 'Đang triển khai', color: 'orange', progress: 70 },
+  completed: { label: 'Hoàn thành', color: 'green', progress: 100 },
+  cancelled: { label: 'Đã hủy', color: 'red', progress: 0 },
 };
 
 export const COMMISSION_STATUS = {
   pending: { label: 'Chờ thanh toán', color: 'yellow' },
   paid: { label: 'Đã thanh toán', color: 'green' },
+  cancelled: { label: 'Đã hủy', color: 'red' },
 };

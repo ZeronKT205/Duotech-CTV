@@ -6,7 +6,8 @@ import { useSession, signOut } from 'next-auth/react';
 // React imports
 import {
   LayoutDashboard, PlusCircle, ClipboardList, DollarSign, User,
-  Users, Settings, BarChart3, LogOut, Menu, X, ShieldCheck
+  Users, Settings, BarChart3, LogOut, Menu, X, ShieldCheck,
+  Inbox, FolderKanban
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -24,7 +25,8 @@ export default function Sidebar({ isOpen, onClose }) {
   ];
 
   const adminLinks = [
-    { href: '/dashboard/admin/orders', icon: <ClipboardList size={18} />, label: 'Quản lý đơn hàng' },
+    { href: '/dashboard/admin/requests', icon: <Inbox size={18} />, label: 'Đơn yêu cầu' },
+    { href: '/dashboard/admin/projects', icon: <FolderKanban size={18} />, label: 'Quản lý Dự án' },
     { href: '/dashboard/admin/ctv', icon: <Users size={18} />, label: 'Quản lý CTV' },
     { href: '/dashboard/admin/commissions', icon: <DollarSign size={18} />, label: 'Quản lý hoa hồng' },
     { href: '/dashboard/admin/settings', icon: <Settings size={18} />, label: 'Cài đặt' },

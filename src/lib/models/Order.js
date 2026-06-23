@@ -49,27 +49,22 @@ const OrderSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'consulting', 'contracted', 'in_progress', 'completed', 'cancelled'],
+    enum: ['pending', 'approved', 'rejected'],
     default: 'pending',
   },
-  contractValue: {
-    type: Number,
-    default: 0,
-    min: 0,
+  // Link to project if approved
+  projectId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
+    default: null,
   },
-  commissionRate: {
-    type: Number,
-    default: 7,
-  },
-  commissionTotal: {
-    type: Number,
-    default: 0,
-  },
-  adminNote: {
+  // Rejection reason
+  rejectionReason: {
     type: String,
     default: '',
+    trim: true,
   },
-  zaloGroupName: {
+  adminNote: {
     type: String,
     default: '',
   },
@@ -85,15 +80,12 @@ OrderSchema.pre('validate', async function() {
   }
 });
 
-OrderSchema.pre('save', async function() {
-  // Auto-calculate commission
-  if (this.contractValue > 0 && this.commissionRate > 0) {
-    this.commissionTotal = Math.round(this.contractValue * this.commissionRate / 100);
-  }
-});
-
 OrderSchema.index({ ctvId: 1, createdAt: -1 });
 OrderSchema.index({ status: 1 });
 OrderSchema.index({ orderCode: 1 });
+
+if (mongoose.models.Order) {
+  delete mongoose.models.Order;
+}
 
 export default mongoose.models.Order || mongoose.model('Order', OrderSchema);

@@ -137,7 +137,6 @@ export default function DashboardPage() {
                       <th>Loại website</th>
                       <th>Ngày tạo</th>
                       <th>Trạng thái</th>
-                      <th>Giá trị HĐ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -151,7 +150,6 @@ export default function DashboardPage() {
                             {ORDER_STATUS[order.status]?.label || order.status}
                           </span>
                         </td>
-                        <td>{order.contractValue > 0 ? formatCurrency(order.contractValue) : '—'}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ClipboardList } from 'lucide-react';
-import { formatCurrency, formatDate, ORDER_STATUS, WEBSITE_TYPES } from '@/lib/utils';
+import { formatDate, ORDER_STATUS, WEBSITE_TYPES } from '@/lib/utils';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
@@ -73,8 +73,6 @@ export default function OrdersPage() {
                       <th>Mô tả</th>
                       <th>Ngày tạo</th>
                       <th>Trạng thái</th>
-                      <th>Giá trị HĐ</th>
-                      <th>Hoa hồng</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -88,12 +86,8 @@ export default function OrdersPage() {
                         <td>{formatDate(order.createdAt)}</td>
                         <td>
                           <span className={`dash-badge ${ORDER_STATUS[order.status]?.color}`}>
-                            {ORDER_STATUS[order.status]?.label}
+                            {ORDER_STATUS[order.status]?.label || order.status}
                           </span>
-                        </td>
-                        <td>{order.contractValue > 0 ? formatCurrency(order.contractValue) : '—'}</td>
-                        <td style={{ color: order.commissionTotal > 0 ? 'var(--dt-green)' : 'inherit', fontWeight: order.commissionTotal > 0 ? 600 : 400 }}>
-                          {order.commissionTotal > 0 ? formatCurrency(order.commissionTotal) : '—'}
                         </td>
                       </tr>
                     ))}

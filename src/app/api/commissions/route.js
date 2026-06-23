@@ -3,6 +3,7 @@ import { authOptions } from '../auth/[...nextauth]/route';
 import connectDB from '@/lib/mongodb';
 import Commission from '@/lib/models/Commission';
 import User from '@/lib/models/User';
+import Project from '@/lib/models/Project';
 
 export async function GET(request) {
   try {
@@ -22,7 +23,9 @@ export async function GET(request) {
     }
 
     const commissions = await Commission.find(query)
-      .populate('ctvId', 'name email bankName bankAccountNumber bankAccountName qrCodeImage')
+      .populate('ctvId', 'name email phone bankName bankAccountNumber bankAccountName qrCodeImage')
+      .populate('projectId', 'projectCode status progress customerName')
+      .populate('paidBy', 'name')
       .sort({ createdAt: -1 })
       .lean();
 

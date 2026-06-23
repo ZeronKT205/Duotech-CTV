@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../auth/[...nextauth]/route';
 import connectDB from '@/lib/mongodb';
 import Order from '@/lib/models/Order';
+import Project from '@/lib/models/Project';
 import Commission from '@/lib/models/Commission';
 import User from '@/lib/models/User';
 
@@ -15,18 +16,21 @@ export async function GET() {
     await connectDB();
     const isAdmin = session.user.role === 'admin';
 
-    let query = {};
+    let orderQuery = {};
+    let projectQuery = {};
     let commissionQuery = {};
 
     if (!isAdmin) {
       const user = await User.findOne({ email: session.user.email });
-      query.ctvId = user._id;
+      orderQuery.ctvId = user._id;
+      projectQuery.ctvId = user._id;
       commissionQuery.ctvId = user._id;
     }
 
-    const [totalOrders, pendingOrders, paidCommissions, pendingCommissions] = await Promise.all([
-      Order.countDocuments(query),
-      Order.countDocuments({ ...query, status: { $in: ['pending', 'consulting'] } }),
+    const [totalOrders, pendingOrders, totalProjects, paidCommissions, pendingCommissions] = await Promise.all([
+      Order.countDocuments(orderQuery),
+      Order.countDocuments({ ...orderQuery, status: 'pending' }),
+      Project.countDocuments(projectQuery),
       Commission.aggregate([
         { $match: { ...commissionQuery, status: 'paid' } },
         { $group: { _id: null, total: { $sum: '$amount' } } },
@@ -40,13 +44,14 @@ export async function GET() {
     const stats = {
       totalOrders,
       pendingOrders,
+      totalProjects,
       paidCommission: paidCommissions[0]?.total || 0,
       pendingCommission: pendingCommissions[0]?.total || 0,
     };
 
     if (isAdmin) {
       const totalCTV = await User.countDocuments({ role: 'ctv' });
-      const totalContractValue = await Order.aggregate([
+      const totalContractValue = await Project.aggregate([
         { $match: { status: { $in: ['contracted', 'in_progress', 'completed'] } } },
         { $group: { _id: null, total: { $sum: '$contractValue' } } },
       ]);
