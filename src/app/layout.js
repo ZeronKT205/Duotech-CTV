@@ -1,5 +1,6 @@
 import './globals.css';
 import AuthProvider from '@/components/AuthProvider';
+import LiveActivityTicker from '@/components/dashboard/LiveActivityTicker';
 
 export const metadata = {
   title: {
@@ -69,8 +70,10 @@ export default function RootLayout({ children }) {
       <body>
         <AuthProvider>
           {children}
+          <LiveActivityTicker />
         </AuthProvider>
       </body>
     </html>
   );
 }
+

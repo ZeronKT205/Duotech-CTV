@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Fragment } from 'react';
 import { useSession } from 'next-auth/react';
-import { Inbox, Check, X, FolderPlus, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Inbox, Check, X, FolderPlus, AlertCircle, ChevronDown, ChevronUp, LayoutGrid, List } from 'lucide-react';
 import { formatDate, WEBSITE_TYPES, ORDER_STATUS } from '@/lib/utils';
 
 export default function AdminRequestsPage() {
@@ -10,6 +10,7 @@ export default function AdminRequestsPage() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'card'
 
   // Create project modal
   const [createModal, setCreateModal] = useState(null);
@@ -42,13 +43,21 @@ export default function AdminRequestsPage() {
 
   async function handleCreateProject() {
     if (!createModal) return;
+    const orderId = createModal._id;
+    const previousOrders = [...orders];
+
+    // Optimistically update local order status to approved
+    setOrders(prev => prev.map(o => 
+      o._id === orderId ? { ...o, status: 'approved' } : o
+    ));
+
     setCreating(true);
     try {
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          orderId: createModal._id,
+          orderId: orderId,
           customerName: createForm.customerName,
           zaloGroupLink: createForm.zaloGroupLink,
           contractValue: Number(createForm.contractValue) || 0,
@@ -60,13 +69,19 @@ export default function AdminRequestsPage() {
         alert(data.message || 'Tạo dự án thành công!');
         setCreateModal(null);
         setCreateForm({ customerName: '', zaloGroupLink: '', contractValue: '', description: '' });
-        fetchOrders();
+        
+        // Update list state with exact backend order data
+        setOrders(prev => prev.map(o => 
+          o._id === orderId ? { ...o, status: 'approved', projectId: data.project } : o
+        ));
       } else {
         alert(`Lỗi: ${data.error || 'Không thể tạo dự án'}`);
+        setOrders(previousOrders);
       }
     } catch (err) {
       console.error(err);
       alert('Lỗi kết nối');
+      setOrders(previousOrders);
     } finally {
       setCreating(false);
     }
@@ -74,21 +89,40 @@ export default function AdminRequestsPage() {
 
   async function handleReject() {
     if (!rejectModal) return;
+    const orderId = rejectModal._id;
+    const previousOrders = [...orders];
+
+    // Optimistically update local order status to rejected
+    setOrders(prev => prev.map(o => 
+      o._id === orderId ? { ...o, status: 'rejected', rejectionReason } : o
+    ));
+
     setRejecting(true);
     try {
-      const res = await fetch(`/api/orders/${rejectModal._id}`, {
+      const res = await fetch(`/api/orders/${orderId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'rejected', rejectionReason }),
       });
       if (res.ok) {
+        const data = await res.json();
         setRejectModal(null);
         setRejectionReason('');
-        fetchOrders();
+        // Update local state with exact data from server
+        setOrders(prev => prev.map(o => 
+          o._id === orderId ? { ...o, ...data.order } : o
+        ));
+      } else {
+        setOrders(previousOrders);
       }
-    } catch (err) { console.error(err); }
-    finally { setRejecting(false); }
+    } catch (err) {
+      console.error(err);
+      setOrders(previousOrders);
+    } finally {
+      setRejecting(false);
+    }
   }
+
 
   const filteredOrders = filter === 'all' ? orders : orders.filter(o => o.status === filter);
 
@@ -112,20 +146,80 @@ export default function AdminRequestsPage() {
       </div>
 
       <div className="dash-body">
-        {/* Filters */}
-        <div className="dash-filters" style={{ marginBottom: 'var(--space-4)' }}>
-          <button className={`dash-filter-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
-            Tất cả ({orders.length})
-          </button>
-          <button className={`dash-filter-btn ${filter === 'pending' ? 'active' : ''}`} onClick={() => setFilter('pending')}>
-            🟡 Cần xử lý ({pendingCount})
-          </button>
-          <button className={`dash-filter-btn ${filter === 'approved' ? 'active' : ''}`} onClick={() => setFilter('approved')}>
-            ✅ Thành công ({approvedCount})
-          </button>
-          <button className={`dash-filter-btn ${filter === 'rejected' ? 'active' : ''}`} onClick={() => setFilter('rejected')}>
-            ❌ Thất bại ({rejectedCount})
-          </button>
+        {/* Filters and Layout Toggle */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 'var(--space-5)',
+          gap: 'var(--space-3)',
+          flexWrap: 'wrap',
+        }}>
+          <div className="dash-filters" style={{ margin: 0 }}>
+            <button className={`dash-filter-btn ${filter === 'all' ? 'active' : ''}`} onClick={() => setFilter('all')}>
+              Tất cả ({orders.length})
+            </button>
+            <button className={`dash-filter-btn ${filter === 'pending' ? 'active' : ''}`} onClick={() => setFilter('pending')}>
+              Cần xử lý ({pendingCount})
+            </button>
+            <button className={`dash-filter-btn ${filter === 'approved' ? 'active' : ''}`} onClick={() => setFilter('approved')}>
+              Thành công ({approvedCount})
+            </button>
+            <button className={`dash-filter-btn ${filter === 'rejected' ? 'active' : ''}`} onClick={() => setFilter('rejected')}>
+              Thất bại ({rejectedCount})
+            </button>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            gap: '4px',
+            background: 'var(--dt-light-surface-2)',
+            padding: '4px',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--dt-light-border)',
+            boxShadow: 'var(--shadow-sm)',
+          }}>
+            <button
+              onClick={() => setViewMode('list')}
+              className="dash-btn"
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.78rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                height: 'auto',
+                backgroundColor: viewMode === 'list' ? 'var(--dt-light-surface)' : 'transparent',
+                color: viewMode === 'list' ? 'var(--dt-light-text)' : 'var(--dt-light-text-secondary)',
+                border: viewMode === 'list' ? '1px solid var(--dt-light-border)' : 'none',
+                boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+                fontWeight: viewMode === 'list' ? 700 : 500,
+                borderRadius: '6px',
+              }}
+            >
+              <List size={14} /> Danh sách
+            </button>
+            <button
+              onClick={() => setViewMode('card')}
+              className="dash-btn"
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.78rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                height: 'auto',
+                backgroundColor: viewMode === 'card' ? 'var(--dt-light-surface)' : 'transparent',
+                color: viewMode === 'card' ? 'var(--dt-light-text)' : 'var(--dt-light-text-secondary)',
+                border: viewMode === 'card' ? '1px solid var(--dt-light-border)' : 'none',
+                boxShadow: viewMode === 'card' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+                fontWeight: viewMode === 'card' ? 700 : 500,
+                borderRadius: '6px',
+              }}
+            >
+              <LayoutGrid size={14} /> Dạng thẻ
+            </button>
+          </div>
         </div>
 
         <div className="dash-card">
@@ -137,7 +231,7 @@ export default function AdminRequestsPage() {
                 <Inbox size={48} />
                 <h3>Không có đơn yêu cầu nào</h3>
               </div>
-            ) : (
+            ) : viewMode === 'list' ? (
               <div className="dash-table-container">
                 <table className="dash-table">
                   <thead>
@@ -236,6 +330,117 @@ export default function AdminRequestsPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            ) : (
+              /* ========== CARD VIEW ========== */
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                gap: 'var(--space-4)',
+                padding: 'var(--space-4)'
+              }}>
+                {filteredOrders.map(order => (
+                  <div
+                    key={order._id}
+                    className="bento-card"
+                    style={{
+                      background: '#fff',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      borderLeft: order.status === 'pending' ? '4px solid #eab308' : '2px solid var(--dt-dark-border)',
+                      padding: 'var(--space-4)',
+                      minHeight: '280px',
+                    }}
+                  >
+                    <div>
+                      {/* Card Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                        <strong style={{ color: 'var(--dt-primary)', fontSize: '0.95rem' }}>{order.orderCode}</strong>
+                        <span className={`dash-badge ${ORDER_STATUS[order.status]?.color}`} style={{ fontSize: '0.68rem' }}>
+                          {ORDER_STATUS[order.status]?.label}
+                        </span>
+                      </div>
+
+                      {/* CTV Info */}
+                      <div style={{ fontSize: '0.78rem', color: 'var(--dt-light-text-secondary)', marginBottom: '8px' }}>
+                        <div>👤 CTV: <strong>{order.ctvEmail}</strong></div>
+                        <div style={{ marginTop: '2px' }}>📞 SĐT: {order.ctvPhone}</div>
+                      </div>
+
+                      {/* Web Type */}
+                      <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '8px', color: 'var(--dt-light-text)' }}>
+                        🌐 {WEBSITE_TYPES[order.websiteType]}
+                      </div>
+
+                      {/* Description & notes */}
+                      <div style={{
+                        background: 'var(--dt-light-surface-2)',
+                        padding: '10px',
+                        borderRadius: 'var(--radius-sm)',
+                        fontSize: '0.78rem',
+                        marginBottom: '12px',
+                        lineHeight: 1.45,
+                        border: '1px solid var(--dt-light-border)'
+                      }}>
+                        <div style={{ fontWeight: 600, color: 'var(--dt-light-text-secondary)', marginBottom: '4px' }}>Mô tả:</div>
+                        <p style={{ margin: 0, maxHeight: '80px', overflowY: 'auto', color: 'var(--dt-light-text)' }}>{order.description}</p>
+                        {order.note && (
+                          <div style={{ marginTop: '8px', borderTop: '1px dashed var(--dt-light-border)', paddingTop: '6px', color: 'var(--dt-light-text-secondary)' }}>
+                            <span style={{ fontWeight: 600 }}>Ghi chú CTV:</span> {order.note}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Footer / Actions */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid var(--dt-light-border)', paddingTop: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--dt-light-text-muted)' }}>
+                        <span>Ngày tạo:</span>
+                        <span>{formatDate(order.createdAt)}</span>
+                      </div>
+
+                      {order.status === 'pending' && (
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                          <button
+                            className="dash-btn dash-btn-success dash-btn-sm"
+                            onClick={() => {
+                              setCreateModal(order);
+                              setCreateForm({
+                                customerName: '',
+                                zaloGroupLink: '',
+                                contractValue: '',
+                                description: order.description,
+                              });
+                            }}
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.72rem' }}
+                          >
+                            <FolderPlus size={12} /> Tạo dự án
+                          </button>
+                          <button
+                            className="dash-btn dash-btn-danger dash-btn-sm"
+                            onClick={() => { setRejectModal(order); setRejectionReason(''); }}
+                            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.72rem' }}
+                          >
+                            <X size={12} /> Từ chối
+                          </button>
+                        </div>
+                      )}
+
+                      {order.status === 'approved' && order.projectId && (
+                        <div style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--dt-light-text-muted)', background: '#ecfdf5', padding: '4px', borderRadius: '4px', border: '1px solid #a7f3d0', fontWeight: 600 }}>
+                          ✓ Dự án đã tạo thành công
+                        </div>
+                      )}
+
+                      {order.status === 'rejected' && (
+                        <div style={{ fontSize: '0.72rem', color: '#ef4444', fontStyle: 'italic', background: '#fef2f2', padding: '6px', borderRadius: '4px', border: '1px solid #fecaca' }}>
+                          <strong>Lý do từ chối:</strong> {order.rejectionReason || 'Không có lý do'}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

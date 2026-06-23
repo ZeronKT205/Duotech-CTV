@@ -4,6 +4,7 @@ import connectDB from '@/lib/mongodb';
 import Commission from '@/lib/models/Commission';
 import User from '@/lib/models/User';
 import Project from '@/lib/models/Project';
+import { cache } from '@/lib/cache';
 
 export async function GET(request) {
   try {
@@ -16,9 +17,19 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const all = searchParams.get('all') === 'true';
 
+    // Create unique cache key based on query parameters and user context
+    const cacheKey = `commissions:list:all=${all}:user=${session.user.role === 'admin' && all ? 'admin' : session.user.email}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return Response.json(cachedData);
+    }
+
     let query = {};
     if (!all || session.user.role !== 'admin') {
       const user = await User.findOne({ email: session.user.email });
+      if (!user) {
+        return Response.json({ commissions: [] });
+      }
       query.ctvId = user._id;
     }
 
@@ -29,9 +40,13 @@ export async function GET(request) {
       .sort({ createdAt: -1 })
       .lean();
 
-    return Response.json({ commissions });
+    const responseData = { commissions };
+    cache.set(cacheKey, responseData, 15); // Cache for 15 seconds
+
+    return Response.json(responseData);
   } catch (error) {
     console.error('GET /api/commissions error:', error);
     return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
+

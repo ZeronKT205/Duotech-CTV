@@ -2,6 +2,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '../../auth/[...nextauth]/route';
 import connectDB from '@/lib/mongodb';
 import User from '@/lib/models/User';
+import { cache } from '@/lib/cache';
 
 export async function PATCH(request, { params }) {
   try {
@@ -24,9 +25,13 @@ export async function PATCH(request, { params }) {
 
     await user.save();
 
+    // Invalidate related cache keys
+    cache.invalidate('users:*');
+
     return Response.json({ user, message: 'Cập nhật thành công' });
   } catch (error) {
     console.error('PATCH /api/users/[id] error:', error);
     return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
+

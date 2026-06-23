@@ -56,9 +56,23 @@ export default function AdminCommissionsPage() {
 
   async function handleConfirmPay() {
     if (!payModal) return;
+    const commissionId = payModal._id;
+    const previousCommissions = [...commissions];
+
+    // Optimistically update local commissions state
+    setCommissions(prev => prev.map(c => 
+      c._id === commissionId ? { 
+        ...c, 
+        status: 'paid', 
+        paidAt: new Date().toISOString(),
+        paidNote: payNote,
+        billImage: billImage,
+      } : c
+    ));
+
     setPaying(true);
     try {
-      const res = await fetch(`/api/commissions/${payModal._id}`, {
+      const res = await fetch(`/api/commissions/${commissionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -68,14 +82,25 @@ export default function AdminCommissionsPage() {
         }),
       });
       if (res.ok) {
+        const data = await res.json();
         setPayModal(null);
         setPayNote('');
         setBillImage('');
-        fetchCommissions();
+        // Update local state with the saved commission object, merging with populated fields
+        setCommissions(prev => prev.map(c => 
+          c._id === commissionId ? { ...c, ...data.commission } : c
+        ));
+      } else {
+        setCommissions(previousCommissions);
       }
-    } catch (err) { console.error(err); }
-    finally { setPaying(false); }
+    } catch (err) {
+      console.error(err);
+      setCommissions(previousCommissions);
+    } finally {
+      setPaying(false);
+    }
   }
+
 
   const pendingCommissions = commissions.filter(c => c.status === 'pending');
   const paidCommissions = commissions.filter(c => c.status === 'paid');
@@ -110,18 +135,18 @@ export default function AdminCommissionsPage() {
         {/* Stats */}
         <div className="dash-stats-grid" style={{ marginBottom: 'var(--space-6)' }}>
           <div className="dash-stat-card">
-            <div className="dash-stat-header"><div className="dash-stat-icon orange"><DollarSign size={20} /></div></div>
+            <div className="dash-stat-header"><div className="dash-stat-icon" style={{ backgroundColor: 'var(--dt-light-surface-3)', color: 'var(--dt-light-text-secondary)' }}><DollarSign size={20} /></div></div>
             <div className="dash-stat-value">{formatCurrency(pendingCommissions.reduce((s, c) => s + c.amount, 0))}</div>
             <div className="dash-stat-label">Chờ thanh toán ({pendingCommissions.length})</div>
           </div>
           <div className="dash-stat-card">
-            <div className="dash-stat-header"><div className="dash-stat-icon green"><DollarSign size={20} /></div></div>
+            <div className="dash-stat-header"><div className="dash-stat-icon" style={{ backgroundColor: 'var(--dt-light-surface-3)', color: 'var(--dt-light-text-secondary)' }}><DollarSign size={20} /></div></div>
             <div className="dash-stat-value">{formatCurrency(paidCommissions.reduce((s, c) => s + c.amount, 0))}</div>
             <div className="dash-stat-label">Đã thanh toán ({paidCommissions.length})</div>
           </div>
           {cancelledCommissions.length > 0 && (
             <div className="dash-stat-card">
-              <div className="dash-stat-header"><div className="dash-stat-icon red"><DollarSign size={20} /></div></div>
+              <div className="dash-stat-header"><div className="dash-stat-icon" style={{ backgroundColor: 'var(--dt-light-surface-3)', color: 'var(--dt-light-text-secondary)' }}><DollarSign size={20} /></div></div>
               <div className="dash-stat-value">{formatCurrency(cancelledCommissions.reduce((s, c) => s + c.amount, 0))}</div>
               <div className="dash-stat-label">Đã hủy ({cancelledCommissions.length})</div>
             </div>

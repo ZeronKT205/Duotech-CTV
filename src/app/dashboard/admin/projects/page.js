@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { FolderKanban, X, MessageSquare, ExternalLink, Link2, Ban, Save, Clock } from 'lucide-react';
+import { FolderKanban, X, MessageSquare, ExternalLink, Link2, Ban, Save, Clock, LayoutGrid, List, User, FileText } from 'lucide-react';
 import { formatCurrency, formatDate, formatDateTime, PROJECT_STATUS, WEBSITE_TYPES } from '@/lib/utils';
 
 export default function AdminProjectsPage() {
   const { data: session } = useSession();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState('card'); // 'card' or 'list'
 
   // Detail modal
   const [selectedProject, setSelectedProject] = useState(null);
@@ -21,6 +22,10 @@ export default function AdminProjectsPage() {
   const [dragNote, setDragNote] = useState(null);
   const [dragNoteText, setDragNoteText] = useState('');
   const [processingDrag, setProcessingDrag] = useState(false);
+
+  // Contract Drag Modal
+  const [contractModal, setContractModal] = useState(null);
+  const [processingContract, setProcessingContract] = useState(false);
 
   // Cancel modal
   const [cancelModal, setCancelModal] = useState(null);
@@ -69,7 +74,11 @@ export default function AdminProjectsPage() {
         body: JSON.stringify(editForm),
       });
       if (res.ok) {
-        fetchProjects();
+        const data = await res.json();
+        // Immediate local state update for list
+        setProjects(prev => prev.map(p => 
+          p._id === selectedProject._id ? data.project : p
+        ));
         openProjectDetail(selectedProject._id);
       }
     } catch (err) { console.error(err); }
@@ -78,14 +87,19 @@ export default function AdminProjectsPage() {
 
   async function addNote(projectId, noteContent) {
     try {
-      await fetch(`/api/projects/${projectId}`, {
+      const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ noteContent }),
       });
-      fetchProjects();
-      if (selectedProject?._id === projectId) {
-        openProjectDetail(projectId);
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(prev => prev.map(p => 
+          p._id === projectId ? data.project : p
+        ));
+        if (selectedProject?._id === projectId) {
+          setSelectedProject(data.project);
+        }
       }
     } catch (err) { console.error(err); }
   }
@@ -95,7 +109,7 @@ export default function AdminProjectsPage() {
     e.dataTransfer.setData('projectId', projectId);
   };
 
-  const handleDrop = (e, targetStatus) => {
+  const handleDrop = async (e, targetStatus) => {
     e.preventDefault();
     const projectId = e.dataTransfer.getData('projectId');
     if (!projectId) return;
@@ -108,16 +122,123 @@ export default function AdminProjectsPage() {
       return;
     }
 
-    // Open note modal for status change
-    setDragNote({ projectId, fromStatus: project.status, toStatus: targetStatus });
-    setDragNoteText('');
+    // Special transition: consulting -> contracted
+    if (project.status === 'consulting' && targetStatus === 'contracted') {
+      setContractModal({
+        project,
+        customerName: project.customerName || '',
+        contractValue: project.contractValue || '',
+        zaloGroupLink: project.zaloGroupLink || '',
+        noteContent: '',
+      });
+      return;
+    }
+
+    const previousProjects = [...projects];
+
+    // Optimistically update card position on board
+    setProjects(prev => prev.map(p => 
+      p._id === projectId ? { ...p, status: targetStatus } : p
+    ));
+
+    // All other transitions: Update directly
+    try {
+      const statusLabels = {
+        consulting: 'Đang tư vấn',
+        contracted: 'Đã ký HĐ',
+        in_progress: 'Đang triển khai',
+        completed: 'Hoàn thành',
+        cancelled: 'Đã hủy',
+      };
+      
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: targetStatus,
+          noteContent: `Chuyển trạng thái dự án: ${statusLabels[project.status]} → ${statusLabels[targetStatus]}`
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Update list state with backend-synchronized data
+        setProjects(prev => prev.map(p => 
+          p._id === projectId ? data.project : p
+        ));
+      } else {
+        // Rollback on error
+        setProjects(previousProjects);
+      }
+    } catch (err) {
+      console.error('Error updating project status directly:', err);
+      setProjects(previousProjects);
+    }
   };
+
+  async function confirmContractDragStatusChange() {
+    if (!contractModal) return;
+    if (!contractModal.noteContent.trim()) {
+      alert('Vui lòng điền ghi chú trạng thái');
+      return;
+    }
+
+    const projectId = contractModal.project._id;
+    const previousProjects = [...projects];
+
+    // Optimistically move card and set updated data
+    setProjects(prev => prev.map(p => 
+      p._id === projectId ? { 
+        ...p, 
+        status: 'contracted',
+        customerName: contractModal.customerName,
+        contractValue: Number(contractModal.contractValue) || 0,
+        zaloGroupLink: contractModal.zaloGroupLink,
+      } : p
+    ));
+
+    setProcessingContract(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'contracted',
+          customerName: contractModal.customerName,
+          contractValue: Number(contractModal.contractValue) || 0,
+          zaloGroupLink: contractModal.zaloGroupLink,
+          noteContent: contractModal.noteContent,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(prev => prev.map(p => 
+          p._id === projectId ? data.project : p
+        ));
+        setContractModal(null);
+      } else {
+        setProjects(previousProjects);
+      }
+    } catch (err) {
+      console.error('Error confirming contract drag status change:', err);
+      setProjects(previousProjects);
+    } finally {
+      setProcessingContract(false);
+    }
+  }
 
   async function confirmDragStatusChange() {
     if (!dragNote) return;
+    const projectId = dragNote.projectId;
+    const previousProjects = [...projects];
+
+    // Optimistic status update
+    setProjects(prev => prev.map(p => 
+      p._id === projectId ? { ...p, status: dragNote.toStatus } : p
+    ));
+
     setProcessingDrag(true);
     try {
-      const res = await fetch(`/api/projects/${dragNote.projectId}`, {
+      const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -126,18 +247,35 @@ export default function AdminProjectsPage() {
         }),
       });
       if (res.ok) {
-        fetchProjects();
+        const data = await res.json();
+        setProjects(prev => prev.map(p => 
+          p._id === projectId ? data.project : p
+        ));
         setDragNote(null);
+      } else {
+        setProjects(previousProjects);
       }
-    } catch (err) { console.error(err); }
-    finally { setProcessingDrag(false); }
+    } catch (err) { 
+      console.error(err); 
+      setProjects(previousProjects);
+    } finally { 
+      setProcessingDrag(false); 
+    }
   }
 
   async function handleCancel() {
     if (!cancelModal) return;
+    const projectId = cancelModal._id;
+    const previousProjects = [...projects];
+
+    // Optimistic status update to cancelled
+    setProjects(prev => prev.map(p => 
+      p._id === projectId ? { ...p, status: 'cancelled' } : p
+    ));
+
     setCancelling(true);
     try {
-      const res = await fetch(`/api/projects/${cancelModal._id}`, {
+      const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -147,12 +285,21 @@ export default function AdminProjectsPage() {
         }),
       });
       if (res.ok) {
-        fetchProjects();
+        const data = await res.json();
+        setProjects(prev => prev.map(p => 
+          p._id === projectId ? data.project : p
+        ));
         setCancelModal(null);
         setCancelReason('');
+      } else {
+        setProjects(previousProjects);
       }
-    } catch (err) { console.error(err); }
-    finally { setCancelling(false); }
+    } catch (err) { 
+      console.error(err); 
+      setProjects(previousProjects);
+    } finally { 
+      setCancelling(false); 
+    }
   }
 
   if (session?.user?.role !== 'admin') {
@@ -185,9 +332,68 @@ export default function AdminProjectsPage() {
       </div>
 
       <div className="dash-body">
+        {/* Layout Toggle */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginBottom: 'var(--space-5)',
+        }}>
+          <div style={{
+            display: 'flex',
+            gap: '4px',
+            background: 'var(--dt-light-surface-2)',
+            padding: '4px',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--dt-light-border)',
+            boxShadow: 'var(--shadow-sm)',
+          }}>
+            <button
+              onClick={() => setViewMode('card')}
+              className="dash-btn"
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.78rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                height: 'auto',
+                backgroundColor: viewMode === 'card' ? 'var(--dt-light-surface)' : 'transparent',
+                color: viewMode === 'card' ? 'var(--dt-light-text)' : 'var(--dt-light-text-secondary)',
+                border: viewMode === 'card' ? '1px solid var(--dt-light-border)' : 'none',
+                boxShadow: viewMode === 'card' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+                fontWeight: viewMode === 'card' ? 700 : 500,
+                borderRadius: '6px',
+              }}
+            >
+              <LayoutGrid size={14} /> Bảng Kanban
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className="dash-btn"
+              style={{
+                padding: '6px 12px',
+                fontSize: '0.78rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                height: 'auto',
+                backgroundColor: viewMode === 'list' ? 'var(--dt-light-surface)' : 'transparent',
+                color: viewMode === 'list' ? 'var(--dt-light-text)' : 'var(--dt-light-text-secondary)',
+                border: viewMode === 'list' ? '1px solid var(--dt-light-border)' : 'none',
+                boxShadow: viewMode === 'list' ? '0 1px 3px rgba(0,0,0,0.05)' : 'none',
+                fontWeight: viewMode === 'list' ? 700 : 500,
+                borderRadius: '6px',
+              }}
+            >
+              <List size={14} /> Danh sách
+            </button>
+          </div>
+        </div>
+
         {loading ? (
           <div className="loading-page"><div className="loading-spinner"></div></div>
-        ) : (
+        ) : viewMode === 'card' ? (
+          /* ========== KANBAN BOARD VIEW ========== */
           <>
             {/* Kanban Board */}
             <div style={{
@@ -313,8 +519,9 @@ export default function AdminProjectsPage() {
 
                             {/* Customer Name */}
                             {project.customerName && (
-                              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--dt-light-text)' }}>
-                                👤 {project.customerName}
+                              <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--dt-light-text)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <User size={13} style={{ color: 'var(--dt-primary)' }} />
+                                <span>{project.customerName}</span>
                               </div>
                             )}
 
@@ -431,6 +638,65 @@ export default function AdminProjectsPage() {
               </div>
             )}
           </>
+        ) : (
+          /* ========== LIST/ROW TABLE VIEW ========== */
+          <div className="dash-card">
+            <div className="dash-card-body" style={{ padding: 0 }}>
+              <div className="dash-table-container">
+                <table className="dash-table">
+                  <thead>
+                    <tr>
+                      <th>Mã dự án</th>
+                      <th>Khách hàng</th>
+                      <th>Loại website</th>
+                      <th>Trạng thái</th>
+                      <th>Tiến độ</th>
+                      <th>Giá trị HĐ</th>
+                      <th>CTV</th>
+                      <th>Ngày tạo</th>
+                      <th>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projects.map(p => (
+                      <tr key={p._id}>
+                        <td><strong style={{ color: 'var(--dt-primary)' }}>{p.projectCode}</strong></td>
+                        <td>{p.customerName || '—'}</td>
+                        <td style={{ fontSize: '0.82rem' }}>{WEBSITE_TYPES[p.websiteType] || p.websiteType}</td>
+                        <td>
+                          <span className={`dash-badge ${PROJECT_STATUS[p.status]?.color}`}>
+                            {PROJECT_STATUS[p.status]?.label}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
+                            <div style={{ flex: 1, height: '6px', backgroundColor: 'var(--dt-light-surface-3)', borderRadius: '3px', overflow: 'hidden' }}>
+                              <div style={{ width: `${p.progress}%`, height: '100%', backgroundColor: statusColors[p.status] || '#3b82f6', borderRadius: '3px' }}></div>
+                            </div>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>{p.progress}%</span>
+                          </div>
+                        </td>
+                        <td style={{ fontWeight: 700, color: 'var(--dt-green)' }}>
+                          {p.contractValue > 0 ? formatCurrency(p.contractValue) : '—'}
+                        </td>
+                        <td>{p.ctvId?.name || '—'}</td>
+                        <td>{formatDate(p.createdAt)}</td>
+                        <td>
+                          <button
+                            className="dash-btn dash-btn-outline dash-btn-sm"
+                            onClick={() => openProjectDetail(p._id)}
+                            style={{ fontSize: '0.75rem' }}
+                          >
+                            Chi tiết
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -439,8 +705,8 @@ export default function AdminProjectsPage() {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 'var(--space-4)' }}>
           <div className="dash-card" style={{ maxWidth: '450px', width: '100%', animation: 'fadeIn 0.2s ease-out' }}>
             <div className="dash-card-header" style={{ borderBottom: '1px solid var(--dt-light-border)' }}>
-              <h3 className="dash-card-title" style={{ margin: 0, fontSize: '1rem' }}>
-                📝 Chuyển trạng thái dự án
+              <h3 className="dash-card-title" style={{ margin: 0, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <FileText size={16} style={{ color: 'var(--dt-primary)' }} /> Chuyển trạng thái dự án
               </h3>
             </div>
             <div className="dash-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
@@ -613,7 +879,9 @@ export default function AdminProjectsPage() {
                   {/* Notes Timeline */}
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700 }}>📝 Lịch sử ghi chú ({selectedProject.notes?.length || 0})</h4>
+                      <h4 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <FileText size={15} style={{ color: 'var(--dt-primary)' }} /> Lịch sử ghi chú ({selectedProject.notes?.length || 0})
+                      </h4>
                       <button
                         className="dash-btn dash-btn-outline dash-btn-sm"
                         onClick={() => { setAddNoteProject(selectedProject); setAddNoteText(''); }}
@@ -685,7 +953,9 @@ export default function AdminProjectsPage() {
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: 'var(--space-4)' }}>
           <div className="dash-card" style={{ maxWidth: '450px', width: '100%', animation: 'fadeIn 0.2s ease-out' }}>
             <div className="dash-card-header" style={{ borderBottom: '1px solid var(--dt-light-border)' }}>
-              <h3 className="dash-card-title" style={{ margin: 0 }}>📝 Thêm ghi chú - {addNoteProject.projectCode}</h3>
+              <h3 className="dash-card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <MessageSquare size={16} style={{ color: 'var(--dt-primary)' }} /> Thêm ghi chú - {addNoteProject.projectCode}
+              </h3>
             </div>
             <div className="dash-card-body">
               <textarea
@@ -702,6 +972,79 @@ export default function AdminProjectsPage() {
                   addNote(addNoteProject._id, addNoteText);
                   setAddNoteProject(null);
                 }}>Thêm ghi chú</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Contract Confirmation Modal */}
+      {contractModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: 'var(--space-4)' }}>
+          <div className="dash-card" style={{ maxWidth: '550px', width: '100%', animation: 'fadeIn 0.2s ease-out' }}>
+            <div className="dash-card-header" style={{ borderBottom: '1px solid var(--dt-light-border)' }}>
+              <h3 className="dash-card-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={18} style={{ color: 'var(--dt-primary)' }} /> Thiết lập hợp đồng dự án {contractModal.project.projectCode}
+              </h3>
+            </div>
+            <div className="dash-card-body" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--dt-light-text-secondary)', margin: 0 }}>
+                Vui lòng chốt lại thông tin chi tiết hợp đồng và ghi chú trạng thái để hoàn tất chuyển sang trạng thái <strong>Đã ký HĐ</strong>.
+              </p>
+
+              <div className="dash-form-group">
+                <label className="dash-form-label">Tên khách hàng <span className="dash-form-required">*</span></label>
+                <input
+                  type="text"
+                  className="dash-form-input"
+                  value={contractModal.customerName}
+                  onChange={(e) => setContractModal({ ...contractModal, customerName: e.target.value })}
+                  placeholder="Nhập tên khách hàng"
+                />
+              </div>
+
+              <div className="dash-form-group">
+                <label className="dash-form-label">Giá trị hợp đồng (VNĐ) <span className="dash-form-required">*</span></label>
+                <input
+                  type="number"
+                  className="dash-form-input"
+                  value={contractModal.contractValue}
+                  onChange={(e) => setContractModal({ ...contractModal, contractValue: e.target.value })}
+                  placeholder="Nhập giá trị hợp đồng"
+                />
+              </div>
+
+              <div className="dash-form-group">
+                <label className="dash-form-label">Link nhóm Zalo</label>
+                <input
+                  type="url"
+                  className="dash-form-input"
+                  value={contractModal.zaloGroupLink}
+                  onChange={(e) => setContractModal({ ...contractModal, zaloGroupLink: e.target.value })}
+                  placeholder="https://zalo.me/g/..."
+                />
+              </div>
+
+              <div className="dash-form-group">
+                <label className="dash-form-label">Ghi chú trạng thái (bắt buộc) <span className="dash-form-required">*</span></label>
+                <textarea
+                  className="dash-form-textarea"
+                  placeholder="Nhập ghi chú chi tiết hợp đồng, điều khoản thanh toán..."
+                  value={contractModal.noteContent}
+                  onChange={(e) => setContractModal({ ...contractModal, noteContent: e.target.value })}
+                  style={{ minHeight: '80px' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', marginTop: 'var(--space-2)' }}>
+                <button className="dash-btn dash-btn-outline" onClick={() => setContractModal(null)}>Hủy</button>
+                <button
+                  className="dash-btn dash-btn-primary"
+                  disabled={processingContract || !contractModal.customerName.trim() || !contractModal.noteContent.trim() || !contractModal.contractValue}
+                  onClick={confirmContractDragStatusChange}
+                >
+                  {processingContract ? 'Đang lưu...' : 'Xác nhận ký hợp đồng'}
+                </button>
               </div>
             </div>
           </div>

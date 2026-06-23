@@ -7,7 +7,7 @@ import { useSession, signOut } from 'next-auth/react';
 import {
   LayoutDashboard, PlusCircle, ClipboardList, DollarSign, User,
   Users, Settings, BarChart3, LogOut, Menu, X, ShieldCheck,
-  Inbox, FolderKanban
+  Inbox, FolderKanban, ShoppingBag, Trophy, Home
 } from 'lucide-react';
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -21,8 +21,11 @@ export default function Sidebar({ isOpen, onClose }) {
     { href: '/dashboard/new-order', icon: <PlusCircle size={18} />, label: 'Báo đơn mới' },
     { href: '/dashboard/orders', icon: <ClipboardList size={18} />, label: 'Đơn hàng của tôi' },
     { href: '/dashboard/commissions', icon: <DollarSign size={18} />, label: 'Hoa hồng' },
+    { href: '/dashboard/leaderboard', icon: <Trophy size={18} />, label: 'Xếp hạng' },
     { href: '/dashboard/profile', icon: <User size={18} />, label: 'Thông tin cá nhân' },
+    { href: '/', icon: <Home size={18} />, label: 'Về trang chủ' },
   ];
+
 
   const adminLinks = [
     { href: '/dashboard/admin/requests', icon: <Inbox size={18} />, label: 'Đơn yêu cầu' },

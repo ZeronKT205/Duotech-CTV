@@ -3,6 +3,7 @@ import { authOptions } from '../../auth/[...nextauth]/route';
 import connectDB from '@/lib/mongodb';
 import Commission from '@/lib/models/Commission';
 import User from '@/lib/models/User';
+import { cache } from '@/lib/cache';
 
 export async function PATCH(request, { params }) {
   try {
@@ -16,9 +17,12 @@ export async function PATCH(request, { params }) {
     const body = await request.json();
     const { status, note, billImage, paidNote } = body;
 
-    const admin = await User.findOne({ email: session.user.email });
+    // Fetch admin and commission in parallel
+    const [admin, commission] = await Promise.all([
+      User.findOne({ email: session.user.email }, '_id'),
+      Commission.findById(id)
+    ]);
 
-    const commission = await Commission.findById(id);
     if (!commission) {
       return Response.json({ error: 'Commission not found' }, { status: 404 });
     }
@@ -26,7 +30,7 @@ export async function PATCH(request, { params }) {
     if (status === 'paid') {
       commission.status = 'paid';
       commission.paidAt = new Date();
-      commission.paidBy = admin._id;
+      commission.paidBy = admin ? admin._id : null;
       if (billImage) commission.billImage = billImage;
       if (paidNote) commission.paidNote = paidNote;
     }
@@ -34,9 +38,15 @@ export async function PATCH(request, { params }) {
 
     await commission.save();
 
+    // Invalidate caches
+    cache.invalidate('commissions:*');
+    cache.invalidate('stats:*');
+    cache.invalidate('users:*');
+
     return Response.json({ commission, message: 'Cập nhật thành công' });
   } catch (error) {
     console.error('PATCH /api/commissions/[id] error:', error);
     return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
+

@@ -5,6 +5,7 @@ import Order from '@/lib/models/Order';
 import Project from '@/lib/models/Project';
 import Commission from '@/lib/models/Commission';
 import User from '@/lib/models/User';
+import { cache } from '@/lib/cache';
 
 export async function GET() {
   try {
@@ -16,48 +17,96 @@ export async function GET() {
     await connectDB();
     const isAdmin = session.user.role === 'admin';
 
+    // Check cache first
+    const cacheKey = `stats:user=${isAdmin ? 'admin' : session.user.email}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return Response.json(cachedData);
+    }
+
     let orderQuery = {};
     let projectQuery = {};
     let commissionQuery = {};
 
     if (!isAdmin) {
       const user = await User.findOne({ email: session.user.email });
+      if (!user) {
+        return Response.json({
+          totalOrders: 0,
+          pendingOrders: 0,
+          totalProjects: 0,
+          paidCommission: 0,
+          pendingCommission: 0,
+        });
+      }
       orderQuery.ctvId = user._id;
       projectQuery.ctvId = user._id;
       commissionQuery.ctvId = user._id;
     }
 
-    const [totalOrders, pendingOrders, totalProjects, paidCommissions, pendingCommissions] = await Promise.all([
-      Order.countDocuments(orderQuery),
-      Order.countDocuments({ ...orderQuery, status: 'pending' }),
+    const promises = [
+      // 1. Order aggregation (total and pending counts in one go)
+      Order.aggregate([
+        { $match: orderQuery },
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            pending: {
+              $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+            }
+          }
+        }
+      ]),
+      // 2. Project counts
       Project.countDocuments(projectQuery),
+      // 3. Commission aggregation (paid and pending amounts in one go)
       Commission.aggregate([
-        { $match: { ...commissionQuery, status: 'paid' } },
-        { $group: { _id: null, total: { $sum: '$amount' } } },
-      ]),
-      Commission.aggregate([
-        { $match: { ...commissionQuery, status: 'pending' } },
-        { $group: { _id: null, total: { $sum: '$amount' } } },
-      ]),
-    ]);
+        { $match: { ...commissionQuery, status: { $in: ['paid', 'pending'] } } },
+        { $group: { _id: '$status', total: { $sum: '$amount' } } }
+      ])
+    ];
+
+    if (isAdmin) {
+      // 4. Total CTV count
+      promises.push(User.countDocuments({ role: 'ctv' }));
+      // 5. Total contract value
+      promises.push(Project.aggregate([
+        { $match: { status: { $in: ['contracted', 'in_progress', 'completed'] } } },
+        { $group: { _id: null, total: { $sum: '$contractValue' } } }
+      ]));
+    }
+
+    const results = await Promise.all(promises);
+
+    const orderStats = results[0][0] || { total: 0, pending: 0 };
+    const totalOrders = orderStats.total;
+    const pendingOrders = orderStats.pending;
+    const totalProjects = results[1] || 0;
+
+    const commissionStats = results[2] || [];
+    let paidCommission = 0;
+    let pendingCommission = 0;
+    commissionStats.forEach(stat => {
+      if (stat._id === 'paid') paidCommission = stat.total;
+      if (stat._id === 'pending') pendingCommission = stat.total;
+    });
 
     const stats = {
       totalOrders,
       pendingOrders,
       totalProjects,
-      paidCommission: paidCommissions[0]?.total || 0,
-      pendingCommission: pendingCommissions[0]?.total || 0,
+      paidCommission,
+      pendingCommission,
     };
 
     if (isAdmin) {
-      const totalCTV = await User.countDocuments({ role: 'ctv' });
-      const totalContractValue = await Project.aggregate([
-        { $match: { status: { $in: ['contracted', 'in_progress', 'completed'] } } },
-        { $group: { _id: null, total: { $sum: '$contractValue' } } },
-      ]);
-      stats.totalCTV = totalCTV;
-      stats.totalContractValue = totalContractValue[0]?.total || 0;
+      stats.totalCTV = results[3] || 0;
+      stats.totalContractValue = results[4][0]?.total || 0;
     }
+
+    // Cache the statistics for 30 seconds
+    cache.set(cacheKey, stats, 30);
 
     return Response.json(stats);
   } catch (error) {
@@ -65,3 +114,4 @@ export async function GET() {
     return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
+

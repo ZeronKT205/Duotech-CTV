@@ -4,6 +4,7 @@ import connectDB from '@/lib/mongodb';
 import Project from '@/lib/models/Project';
 import Order from '@/lib/models/Order';
 import User from '@/lib/models/User';
+import { cache } from '@/lib/cache';
 
 export async function GET(request) {
   try {
@@ -17,9 +18,19 @@ export async function GET(request) {
     const all = searchParams.get('all') === 'true';
     const status = searchParams.get('status');
 
+    // Create unique cache key based on query params and user context
+    const cacheKey = `projects:list:all=${all}:status=${status || 'all'}:user=${session.user.role === 'admin' && all ? 'admin' : session.user.email}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return Response.json(cachedData);
+    }
+
     let query = {};
     if (!all || session.user.role !== 'admin') {
       const user = await User.findOne({ email: session.user.email });
+      if (!user) {
+        return Response.json({ projects: [] });
+      }
       query.ctvId = user._id;
     }
     if (status && status !== 'all') {
@@ -27,12 +38,15 @@ export async function GET(request) {
     }
 
     const projects = await Project.find(query)
-      .populate('ctvId', 'name email phone avatar bankName bankAccountNumber bankAccountName qrCodeImage')
+      .populate('ctvId', 'name email phone avatar') // Populating only general info, not bank details/QR code
       .populate('orderId', 'orderCode websiteType description')
       .sort({ createdAt: -1 })
       .lean();
 
-    return Response.json({ projects });
+    const responseData = { projects };
+    cache.set(cacheKey, responseData, 15); // Cache for 15 seconds
+
+    return Response.json(responseData);
   } catch (error) {
     console.error('GET /api/projects error:', error);
     return Response.json({ error: 'Server error' }, { status: 500 });
@@ -82,7 +96,7 @@ export async function POST(request) {
       progress: 20,
       notes: [{
         content: 'Dự án được tạo từ đơn hàng ' + order.orderCode,
-        createdBy: admin._id,
+        createdBy: admin ? admin._id : null,
         createdAt: new Date(),
         statusChange: { from: null, to: 'consulting' },
       }],
@@ -93,6 +107,12 @@ export async function POST(request) {
     order.projectId = project._id;
     await order.save();
 
+    // Invalidate related cache keys
+    cache.invalidate('projects:*');
+    cache.invalidate('orders:*');
+    cache.invalidate('stats:*');
+    cache.invalidate('users:*');
+
     return Response.json({
       project,
       message: `Tạo dự án ${project.projectCode} thành công`,
@@ -102,3 +122,4 @@ export async function POST(request) {
     return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
+

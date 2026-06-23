@@ -3,6 +3,8 @@ import { authOptions } from '../auth/[...nextauth]/route';
 import connectDB from '@/lib/mongodb';
 import Order from '@/lib/models/Order';
 import User from '@/lib/models/User';
+import Project from '@/lib/models/Project';
+import { cache } from '@/lib/cache';
 
 export async function GET(request) {
   try {
@@ -16,18 +18,32 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit')) || 100;
     const all = searchParams.get('all') === 'true';
 
+    // Create unique cache key based on query parameters and user context
+    const cacheKey = `orders:list:all=${all}:limit=${limit}:user=${session.user.role === 'admin' && all ? 'admin' : session.user.email}`;
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return Response.json(cachedData);
+    }
+
     let query = {};
     if (!all || session.user.role !== 'admin') {
       const user = await User.findOne({ email: session.user.email });
+      if (!user) {
+        return Response.json({ orders: [] });
+      }
       query.ctvId = user._id;
     }
 
     const orders = await Order.find(query)
+      .populate('projectId', 'status progress projectCode') // Populating only status, progress, projectCode instead of the full document
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
 
-    return Response.json({ orders });
+    const responseData = { orders };
+    cache.set(cacheKey, responseData, 15); // Cache for 15 seconds
+
+    return Response.json(responseData);
   } catch (error) {
     console.error('GET /api/orders error:', error);
     return Response.json({ error: 'Server error' }, { status: 500 });
@@ -66,9 +82,15 @@ export async function POST(request) {
       commissionRate,
     });
 
+    // Invalidate related cache keys
+    cache.invalidate('orders:*');
+    cache.invalidate('stats:*');
+    cache.invalidate('users:*');
+
     return Response.json({ order, message: 'Tạo đơn thành công' }, { status: 201 });
   } catch (error) {
     console.error('POST /api/orders error:', error);
     return Response.json({ error: 'Server error' }, { status: 500 });
   }
 }
+

@@ -1,7 +1,58 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+
+const AnimatedCounter = ({ target, duration = 2000, suffix = '', prefix = '', decimals = 0 }) => {
+  const [count, setCount] = useState(0);
+  const [ref, setRef] = useState(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (!ref) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.unobserve(ref);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(ref);
+    return () => {
+      if (ref) observer.unobserve(ref);
+    };
+  }, [ref]);
+
+  useEffect(() => {
+    if (!visible) return;
+    let startTimestamp = null;
+    const step = (timestamp) => {
+      if (!startTimestamp) startTimestamp = timestamp;
+      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+      const easeProgress = 1 - Math.pow(1 - progress, 3);
+      setCount(easeProgress * target);
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      }
+    };
+    window.requestAnimationFrame(step);
+  }, [visible, target, duration]);
+
+  return (
+    <span ref={setRef}>
+      {prefix}
+      {count.toLocaleString('vi-VN', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      })}
+      {suffix}
+    </span>
+  );
+};
+
 import { ChevronDown, ArrowRight, Globe, ShoppingCart, Utensils, Shirt, Briefcase, FileText, GraduationCap, Building2, ExternalLink, Phone, Mail, Shield, Check, Users, DollarSign, MessageCircle, Star, Zap, MapPin } from 'lucide-react';
 
 const SERVICES = [
@@ -48,10 +99,32 @@ const Logo = () => (
 );
 
 export default function LandingPage() {
+  const { data: session } = useSession();
   const [openFaq, setOpenFaq] = useState(null);
   const [calcValue, setCalcValue] = useState(100);
 
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('active');
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    const elements = document.querySelectorAll('.reveal-on-scroll');
+    elements.forEach((el) => observer.observe(el));
+
+    return () => {
+      elements.forEach((el) => observer.unobserve(el));
+    };
+  }, []);
+
   return (
+
     <>
       {/* NAVBAR */}
       <nav className="landing-nav">
@@ -65,9 +138,15 @@ export default function LandingPage() {
           <li><a href="#uy-tin">Uy tín</a></li>
           <li><a href="#faq">FAQ</a></li>
         </ul>
-        <Link href="/login" className="landing-nav-cta" id="nav-login-btn">
-          Đăng nhập <ArrowRight size={16} />
-        </Link>
+        {session ? (
+          <Link href="/dashboard" className="landing-nav-cta" id="nav-login-btn">
+            Vào Dashboard <ArrowRight size={16} />
+          </Link>
+        ) : (
+          <Link href="/login" className="landing-nav-cta" id="nav-login-btn">
+            Đăng nhập <ArrowRight size={16} />
+          </Link>
+        )}
       </nav>
 
       {/* HERO */}
@@ -89,19 +168,26 @@ export default function LandingPage() {
               Không cần kinh nghiệm, DUOTECH lo tất cả.
             </p>
             <div className="hero-actions animate-fade-up delay-3">
-              <Link href="/login" className="btn-pill-primary" id="hero-cta-btn">
-                Bắt đầu ngay
-                <span className="btn-arrow"><ArrowRight size={14} /></span>
-              </Link>
+              {session ? (
+                <Link href="/dashboard" className="btn-pill-primary" id="hero-cta-btn">
+                  Vào Dashboard
+                  <span className="btn-arrow"><ArrowRight size={14} /></span>
+                </Link>
+              ) : (
+                <Link href="/login" className="btn-pill-primary" id="hero-cta-btn">
+                  Bắt đầu ngay
+                  <span className="btn-arrow"><ArrowRight size={14} /></span>
+                </Link>
+              )}
               <a href="#quy-trinh" className="btn-pill-secondary">
                 Tìm hiểu thêm
               </a>
             </div>
             <div className="hero-audience animate-fade-up delay-4">
               <div className="hero-avatars">
-                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&fit=crop&crop=faces&q=80" alt="CTV Avatar" className="hero-avatar" />
-                <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&fit=crop&crop=faces&q=80" alt="CTV Avatar" className="hero-avatar" />
-                <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&fit=crop&crop=faces&q=80" alt="CTV Avatar" className="hero-avatar" />
+                <img src="/api/uploads?key=uploads%2Favt-1782206546881-0.jpg" alt="CTV Avatar Top 1" className="hero-avatar" />
+                <img src="/api/uploads?key=uploads%2Favt-1782206547632-1.jpg" alt="CTV Avatar Top 2" className="hero-avatar" />
+                <img src="/api/uploads?key=uploads%2Favt-1782206548323-2.jpg" alt="CTV Avatar Top 3" className="hero-avatar" />
               </div>
               <div className="hero-audience-text">
                 Dành riêng cho Trung tâm,<br />doanh nghiệp & các CTV công nghệ.
@@ -135,8 +221,39 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* STATS SECTION */}
+      <section className="stats-section reveal-on-scroll">
+        <div className="stats-container">
+          <div className="stat-item">
+            <div className="stat-number">
+              <AnimatedCounter target={150} suffix="+" />
+            </div>
+            <div className="stat-label">Dự án hoàn thành</div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-number">
+              <AnimatedCounter target={500} suffix="+" />
+            </div>
+            <div className="stat-label">CTV hoạt động</div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-number">
+              <AnimatedCounter target={1.2} decimals={1} suffix=" Tỷ+" />
+            </div>
+            <div className="stat-label">Hoa hồng đã chi trả</div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-number">
+              <AnimatedCounter target={99} suffix="%" />
+            </div>
+            <div className="stat-label">Thanh toán đúng hạn</div>
+          </div>
+        </div>
+      </section>
+
       {/* QUY TRÌNH */}
-      <section className="section" id="quy-trinh">
+      <section className="section reveal-on-scroll" id="quy-trinh">
+
         <p className="section-label animate-fade-up">Quy trình làm việc</p>
         <h2 className="section-title animate-fade-up delay-1">
           Chỉ <span style={{ color: 'var(--dt-neon)' }}>4 bước</span> để nhận hoa hồng
@@ -188,17 +305,20 @@ export default function LandingPage() {
 
           <div className="bento-card dark animate-fade-up delay-4" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
             <p className="bento-card-label">Độ chính xác</p>
-            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '4rem', color: 'var(--dt-orange)', lineHeight: 1 }}>99</div>
+            <div style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '4rem', color: 'var(--dt-orange)', lineHeight: 1 }}>
+              <AnimatedCounter target={99} />
+            </div>
             <div style={{ width: '80%', height: '4px', background: 'var(--dt-dark-border)', borderRadius: '2px', marginTop: 'var(--space-4)', overflow: 'hidden' }}>
               <div style={{ width: '99%', height: '100%', background: 'var(--dt-orange)', borderRadius: '2px' }}></div>
             </div>
             <p className="bento-card-desc" style={{ marginTop: 'var(--space-3)' }}>% Thanh toán đúng hạn</p>
           </div>
+
         </div>
       </section>
 
       {/* HOA HỒNG */}
-      <section className="commission-section" id="hoa-hong">
+      <section className="commission-section reveal-on-scroll" id="hoa-hong">
         <div className="section" style={{ paddingTop: 'var(--space-24)', paddingBottom: 'var(--space-24)' }}>
           <p className="section-label animate-fade-up">Hoa hồng chi tiết</p>
           <h2 className="section-title animate-fade-up delay-1">
@@ -277,7 +397,7 @@ export default function LandingPage() {
       </section>
 
       {/* DỊCH VỤ */}
-      <section className="section" id="dich-vu">
+      <section className="section reveal-on-scroll" id="dich-vu">
         <p className="section-label animate-fade-up">Dịch vụ</p>
         <h2 className="section-title animate-fade-up delay-1">
           Các loại website <span style={{ color: 'var(--dt-neon)' }}>bạn có thể giới thiệu</span>
@@ -302,7 +422,7 @@ export default function LandingPage() {
       </section>
 
       {/* UY TÍN */}
-      <section className="section" id="uy-tin">
+      <section className="section reveal-on-scroll" id="uy-tin">
         <p className="section-label animate-fade-up">Uy tín & Dự án</p>
         <h2 className="section-title animate-fade-up delay-1">
           Tại sao chọn <span style={{ color: 'var(--dt-neon)' }}>DUOTECH</span>?
@@ -360,7 +480,7 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ */}
-      <section className="section" id="faq">
+      <section className="section reveal-on-scroll" id="faq">
         <p className="section-label animate-fade-up">Câu hỏi thường gặp</p>
         <h2 className="section-title animate-fade-up delay-1">FAQ</h2>
         <p className="section-subtitle animate-fade-up delay-2">
@@ -403,7 +523,7 @@ export default function LandingPage() {
       </section>
 
       {/* ZALO GROUP */}
-      <section className="zalo-section">
+      <section className="zalo-section reveal-on-scroll">
         <div className="zalo-card animate-scale-in">
           <h2>💬 Tham gia nhóm Zalo CTV</h2>
           <p>
@@ -446,7 +566,11 @@ export default function LandingPage() {
             <a href="#quy-trinh">Quy trình</a>
             <a href="#hoa-hong">Hoa hồng</a>
             <a href="#faq">FAQ</a>
-            <Link href="/login">Đăng nhập</Link>
+            {session ? (
+              <Link href="/dashboard">Vào Dashboard</Link>
+            ) : (
+              <Link href="/login">Đăng nhập</Link>
+            )}
           </div>
           <div className="footer-col">
             <h4>Liên hệ</h4>

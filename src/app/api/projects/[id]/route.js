@@ -5,6 +5,8 @@ import Project from '@/lib/models/Project';
 import Commission from '@/lib/models/Commission';
 import User from '@/lib/models/User';
 
+import { cache } from '@/lib/cache';
+
 export async function GET(request, { params }) {
   try {
     const session = await getServerSession(authOptions);
@@ -53,12 +55,17 @@ export async function PATCH(request, { params }) {
       contractValue, progress, noteContent, cancelReason
     } = body;
 
-    const project = await Project.findById(id);
+    // Parallel fetch project, admin, and existing commissions
+    const [project, admin, existingCommissions] = await Promise.all([
+      Project.findById(id),
+      User.findOne({ email: session.user.email }, '_id'),
+      Commission.find({ projectId: id })
+    ]);
+
     if (!project) {
       return Response.json({ error: 'Dự án không tìm thấy' }, { status: 404 });
     }
 
-    const admin = await User.findOne({ email: session.user.email });
     const previousStatus = project.status;
 
     // Update fields
@@ -67,6 +74,10 @@ export async function PATCH(request, { params }) {
     if (contactLinks !== undefined) project.contactLinks = contactLinks;
     if (progress !== undefined) project.progress = progress;
 
+    const commissionsToSave = [];
+    const commissionsToDelete = [];
+    const commissionsToCreate = [];
+
     if (contractValue !== undefined) {
       project.contractValue = contractValue;
       // Pre-calculate to update commissions
@@ -74,25 +85,24 @@ export async function PATCH(request, { params }) {
       project.commissionTotal = commissionTotal;
       
       // Update pending commissions
-      const existing = await Commission.find({ projectId: project._id });
-      const phase1 = existing.find(c => c.phase === 1);
-      const phase2 = existing.find(c => c.phase === 2);
+      const phase1 = existingCommissions.find(c => c.phase === 1);
+      const phase2 = existingCommissions.find(c => c.phase === 2);
       
       if (phase1) {
         if (phase1.status === 'pending') {
           const halfAmount = Math.round(commissionTotal / 2);
           phase1.amount = halfAmount;
-          await phase1.save();
+          commissionsToSave.push(phase1);
           
           if (phase2 && phase2.status === 'pending') {
             phase2.amount = commissionTotal - halfAmount;
-            await phase2.save();
+            commissionsToSave.push(phase2);
           }
         } else {
           // If phase 1 is paid, phase 2 (if pending) gets the remaining balance
           if (phase2 && phase2.status === 'pending') {
             phase2.amount = Math.max(0, commissionTotal - phase1.amount);
-            await phase2.save();
+            commissionsToSave.push(phase2);
           }
         }
       }
@@ -114,7 +124,7 @@ export async function PATCH(request, { params }) {
 
       project.notes.push({
         content: noteContent || `Chuyển trạng thái: ${statusLabels[previousStatus]} → ${statusLabels[status]}`,
-        createdBy: admin._id,
+        createdBy: admin ? admin._id : null,
         createdAt: new Date(),
         statusChange: { from: previousStatus, to: status },
       });
@@ -125,16 +135,18 @@ export async function PATCH(request, { params }) {
         project.cancelReason = cancelReason || '';
         
         // Cancel pending commissions
-        await Commission.updateMany(
-          { projectId: project._id, status: 'pending' },
-          { status: 'cancelled' }
-        );
+        existingCommissions.forEach(c => {
+          if (c.status === 'pending') {
+            c.status = 'cancelled';
+            commissionsToSave.push(c);
+          }
+        });
       }
     } else if (noteContent) {
       // Add a note without status change
       project.notes.push({
         content: noteContent,
-        createdBy: admin._id,
+        createdBy: admin ? admin._id : null,
         createdAt: new Date(),
         statusChange: { from: null, to: null },
       });
@@ -146,13 +158,17 @@ export async function PATCH(request, { params }) {
       
       if (targetStatus === 'consulting') {
         // Delete pending commissions if moved back to consulting
-        await Commission.deleteMany({ projectId: project._id, status: 'pending' });
+        existingCommissions.forEach(c => {
+          if (c.status === 'pending') {
+            commissionsToDelete.push(c._id);
+          }
+        });
       } 
       else if (targetStatus === 'contracted' || targetStatus === 'in_progress') {
         // Ensure Phase 1 commission exists as pending
-        const existingPhase1 = await Commission.findOne({ projectId: project._id, phase: 1 });
+        const existingPhase1 = existingCommissions.find(c => c.phase === 1);
         if (!existingPhase1) {
-          await Commission.create({
+          commissionsToCreate.push({
             orderId: project.orderId,
             projectId: project._id,
             orderCode: project.orderCode,
@@ -164,13 +180,18 @@ export async function PATCH(request, { params }) {
           });
         }
         // Delete pending Phase 2 commission if exists (not completed yet)
-        await Commission.deleteMany({ projectId: project._id, phase: 2, status: 'pending' });
+        existingCommissions.forEach(c => {
+          if (c.phase === 2 && c.status === 'pending') {
+            commissionsToDelete.push(c._id);
+          }
+        });
       } 
       else if (targetStatus === 'completed') {
         // Ensure Phase 1 commission exists
-        const existingPhase1 = await Commission.findOne({ projectId: project._id, phase: 1 });
+        const existingPhase1 = existingCommissions.find(c => c.phase === 1);
+        const resolvedPhase1Amount = existingPhase1 ? existingPhase1.amount : halfAmount;
         if (!existingPhase1) {
-          await Commission.create({
+          commissionsToCreate.push({
             orderId: project.orderId,
             projectId: project._id,
             orderCode: project.orderCode,
@@ -182,31 +203,57 @@ export async function PATCH(request, { params }) {
           });
         }
         // Ensure Phase 2 commission exists
-        const existingPhase2 = await Commission.findOne({ projectId: project._id, phase: 2 });
+        const existingPhase2 = existingCommissions.find(c => c.phase === 2);
         if (!existingPhase2) {
-          await Commission.create({
+          commissionsToCreate.push({
             orderId: project.orderId,
             projectId: project._id,
             orderCode: project.orderCode,
             projectCode: project.projectCode,
             ctvId: project.ctvId,
             phase: 2,
-            amount: project.commissionTotal - (existingPhase1 ? existingPhase1.amount : halfAmount),
+            amount: Math.max(0, project.commissionTotal - resolvedPhase1Amount),
             status: 'pending',
           });
         }
       }
     }
 
-    await project.save();
+    // Execute all database updates in parallel
+    const dbOperations = [];
+    dbOperations.push(project.save());
 
-    // Re-fetch with populated fields
-    const updated = await Project.findById(id)
-      .populate('ctvId', 'name email phone avatar')
-      .populate('notes.createdBy', 'name email')
-      .lean();
+    const uniqueSaves = Array.from(new Set(commissionsToSave));
+    uniqueSaves.forEach(c => {
+      if (!commissionsToDelete.some(idToDelete => idToDelete.toString() === c._id.toString())) {
+        dbOperations.push(c.save());
+      }
+    });
 
-    return Response.json({ project: updated, message: 'Cập nhật thành công' });
+    if (commissionsToCreate.length > 0) {
+      dbOperations.push(Commission.insertMany(commissionsToCreate));
+    }
+
+    if (commissionsToDelete.length > 0) {
+      dbOperations.push(Commission.deleteMany({ _id: { $in: commissionsToDelete } }));
+    }
+
+    await Promise.all(dbOperations);
+
+    // Populate fields in place without another findById call
+    await project.populate([
+      { path: 'ctvId', select: 'name email phone avatar' },
+      { path: 'notes.createdBy', select: 'name email' }
+    ]);
+
+    // Invalidate related cache keys
+    cache.invalidate('projects:*');
+    cache.invalidate('commissions:*');
+    cache.invalidate('stats:*');
+    cache.invalidate('orders:*');
+    cache.invalidate('users:*');
+
+    return Response.json({ project: project.toObject(), message: 'Cập nhật thành công' });
   } catch (error) {
     console.error('PATCH /api/projects/[id] error:', error);
     return Response.json({ error: 'Server error' }, { status: 500 });

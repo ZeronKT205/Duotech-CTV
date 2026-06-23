@@ -106,17 +106,17 @@ export default function AdminCTVPage() {
         {/* Stats Cards */}
         <div className="dash-stats-grid" style={{ marginBottom: 'var(--space-6)' }}>
           <div className="dash-stat-card">
-            <div className="dash-stat-header"><div className="dash-stat-icon blue"><Users size={20} /></div></div>
+            <div className="dash-stat-header"><div className="dash-stat-icon" style={{ backgroundColor: 'var(--dt-light-surface-3)', color: 'var(--dt-light-text-secondary)' }}><Users size={20} /></div></div>
             <div className="dash-stat-value">{totalCTV}</div>
             <div className="dash-stat-label">Tổng CTV</div>
           </div>
           <div className="dash-stat-card">
-            <div className="dash-stat-header"><div className="dash-stat-icon green"><Inbox size={20} /></div></div>
+            <div className="dash-stat-header"><div className="dash-stat-icon" style={{ backgroundColor: 'var(--dt-light-surface-3)', color: 'var(--dt-light-text-secondary)' }}><Inbox size={20} /></div></div>
             <div className="dash-stat-value">{ctvWithOrders}</div>
             <div className="dash-stat-label">CTV có đơn hàng</div>
           </div>
           <div className="dash-stat-card">
-            <div className="dash-stat-header"><div className="dash-stat-icon orange"><CreditCard size={20} /></div></div>
+            <div className="dash-stat-header"><div className="dash-stat-icon" style={{ backgroundColor: 'var(--dt-light-surface-3)', color: 'var(--dt-light-text-secondary)' }}><CreditCard size={20} /></div></div>
             <div className="dash-stat-value">{ctvNeedPay}</div>
             <div className="dash-stat-label">CTV cần thanh toán</div>
           </div>
