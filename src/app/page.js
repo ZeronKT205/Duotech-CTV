@@ -221,36 +221,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* STATS SECTION */}
-      <section className="stats-section reveal-on-scroll">
-        <div className="stats-container">
-          <div className="stat-item">
-            <div className="stat-number">
-              <AnimatedCounter target={150} suffix="+" />
-            </div>
-            <div className="stat-label">Dự án hoàn thành</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-number">
-              <AnimatedCounter target={500} suffix="+" />
-            </div>
-            <div className="stat-label">CTV hoạt động</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-number">
-              <AnimatedCounter target={1.2} decimals={1} suffix=" Tỷ+" />
-            </div>
-            <div className="stat-label">Hoa hồng đã chi trả</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-number">
-              <AnimatedCounter target={99} suffix="%" />
-            </div>
-            <div className="stat-label">Thanh toán đúng hạn</div>
-          </div>
-        </div>
-      </section>
-
       {/* QUY TRÌNH */}
       <section className="section reveal-on-scroll" id="quy-trinh">
 
