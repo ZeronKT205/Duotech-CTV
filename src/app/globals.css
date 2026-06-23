@@ -3093,3 +3093,90 @@ input, textarea, select {
   color: var(--dt-dark-border);
   opacity: 0.15;
 }
+
+/* Mobile responsive styles for Leaderboard Podium */
+@media (max-width: 600px) {
+  .leaderboard-podium-container {
+    gap: 8px; /* tight gap to fit 3 columns side-by-side */
+    padding: 20px 4px;
+    flex-wrap: nowrap !important; /* force side-by-side podium metaphor */
+    justify-content: space-around;
+  }
+
+  .leaderboard-podium-container::before {
+    background-size: contain;
+    opacity: 0.25;
+  }
+
+  .podium-card-wrapper {
+    max-width: 105px !important;
+    transform: none !important; /* reset scale to prevent layout overflow */
+  }
+
+  .podium-avatar-container {
+    margin-bottom: 8px !important;
+  }
+
+  .leaderboard-podium-container .podium-avatar-wrapper {
+    width: 46px !important;
+    height: 46px !important;
+    border-width: 2px !important;
+  }
+  
+  .leaderboard-podium-container .rank-1 .podium-avatar-wrapper {
+    width: 56px !important;
+    height: 56px !important;
+    border-width: 3px !important;
+  }
+
+  .podium-medal {
+    width: 22px !important;
+    height: 22px !important;
+    font-size: 0.85rem !important;
+    bottom: -4px !important;
+    right: -4px !important;
+    border-width: 1.5px !important;
+    box-shadow: 1px 1px 0px #0f172a !important;
+  }
+
+  .podium-stand {
+    padding: 10px 4px !important;
+    border-radius: 12px 12px 6px 6px !important;
+    border-width: 1.5px !important;
+    box-shadow: var(--shadow-sm) !important;
+  }
+
+  .podium-stand.rank-1 {
+    height: 135px !important;
+  }
+
+  .podium-stand.rank-2 {
+    height: 105px !important;
+  }
+
+  .podium-stand.rank-3 {
+    height: 90px !important;
+  }
+
+  .podium-user-name {
+    font-size: 0.72rem !important;
+    margin-bottom: 3px !important;
+    line-height: 1.2 !important;
+    white-space: normal !important;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .podium-user-amount {
+    font-size: 0.72rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .podium-rank-badge {
+    font-size: 1.2rem !important;
+  }
+}
+
