@@ -18,6 +18,70 @@ export const authOptions = {
       },
     }),
     CredentialsProvider({
+      id: 'email-otp',
+      name: 'Email OTP',
+      credentials: {
+        email: { label: "Email", type: "text" },
+        otp: { label: "OTP", type: "text" }
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.otp) {
+          throw new Error('Email và mã xác thực là bắt buộc');
+        }
+
+        const email = credentials.email.toLowerCase().trim();
+
+        // Verify OTP via internal API
+        const { default: OtpModel } = await import('@/lib/models/Otp');
+        await connectDB();
+
+        const otpRecord = await OtpModel.findOne({
+          email,
+          expiresAt: { $gt: new Date() },
+        }).sort({ createdAt: -1 });
+
+        if (!otpRecord) {
+          throw new Error('Mã xác thực đã hết hạn');
+        }
+
+        if (otpRecord.attempts >= 5) {
+          await OtpModel.deleteMany({ email });
+          throw new Error('Bạn đã nhập sai quá nhiều lần');
+        }
+
+        if (otpRecord.otp !== credentials.otp.trim()) {
+          otpRecord.attempts += 1;
+          await otpRecord.save();
+          throw new Error('Mã xác thực không đúng');
+        }
+
+        // OTP verified — clean up
+        await OtpModel.deleteMany({ email });
+
+        // Find or create user (merge with existing Google account by email)
+        let user = await User.findOne({ email });
+        if (!user) {
+          const isAdmin = email === process.env.ADMIN_EMAIL;
+          user = await User.create({
+            email,
+            name: email.split('@')[0],
+            avatar: '',
+            role: isAdmin ? 'admin' : 'ctv',
+            isActive: true,
+          });
+        }
+
+        return {
+          id: user._id.toString(),
+          email: user.email,
+          name: user.name,
+          image: user.avatar || null,
+          role: user.role,
+        };
+      }
+    }),
+    CredentialsProvider({
+      id: 'dev-bypass',
       name: 'Developer Bypass',
       credentials: {
         email: { label: "Email", type: "text" },
@@ -57,7 +121,7 @@ export const authOptions = {
   ],
   callbacks: {
     async signIn({ user, account }) {
-      if (account?.provider === 'credentials') {
+      if (account?.provider === 'email-otp' || account?.provider === 'dev-bypass' || account?.provider === 'credentials') {
         return true;
       }
       try {

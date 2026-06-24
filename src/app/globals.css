@@ -1848,6 +1848,344 @@ input, textarea, select {
 }
 
 /* ============================================
+   IN-APP BROWSER WARNING
+   ============================================ */
+
+.login-inapp-warning {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: #fef3c7;
+  border: 2px solid #f59e0b;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-6);
+  animation: fadeInUp 0.4s var(--ease-out);
+}
+
+.login-inapp-warning-icon {
+  flex-shrink: 0;
+  color: #d97706;
+  margin-top: 2px;
+}
+
+.login-inapp-warning-content {
+  flex: 1;
+}
+
+.login-inapp-warning-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #92400e;
+  margin-bottom: 4px;
+}
+
+.login-inapp-warning-desc {
+  font-size: 0.78rem;
+  color: #a16207;
+  line-height: 1.5;
+  margin-bottom: var(--space-3);
+}
+
+.login-inapp-warning-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.login-open-browser-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: #0052cc;
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: var(--font-display);
+  border-radius: var(--radius-sm);
+  border: 2px solid #003d99;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.login-open-browser-btn:hover {
+  background: #003d99;
+  transform: translateY(-1px);
+}
+
+.login-copy-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: white;
+  color: #92400e;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-display);
+  border-radius: var(--radius-sm);
+  border: 2px solid #f59e0b;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.login-copy-link-btn:hover {
+  background: #fef3c7;
+}
+
+/* ============================================
+   EMAIL OTP LOGIN
+   ============================================ */
+
+.login-email-section {
+  margin-bottom: var(--space-4);
+}
+
+.login-btn-email-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--dt-dark-surface-2);
+  color: var(--dt-dark-text);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--dt-dark-border);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.login-btn-email-toggle:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-md);
+  background: var(--dt-dark-surface-3);
+}
+
+.login-btn-email-toggle:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+.login-email-form {
+  animation: fadeInUp 0.3s var(--ease-out);
+}
+
+.login-input-group {
+  margin-bottom: var(--space-4);
+}
+
+.login-input-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--dt-dark-text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.login-email-input,
+.login-otp-input {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: var(--dt-dark-surface);
+  color: var(--dt-dark-text);
+  font-size: 0.95rem;
+  font-family: var(--font-body);
+  border: 2px solid var(--dt-dark-border);
+  border-radius: var(--radius-md);
+  outline: none;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+.login-email-input:focus,
+.login-otp-input:focus {
+  border-color: var(--dt-neon);
+  box-shadow: 0 0 0 3px rgba(0, 82, 204, 0.15);
+}
+
+.login-email-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-otp-input {
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-family: var(--font-display);
+  letter-spacing: 8px;
+  padding: var(--space-4);
+}
+
+.login-btn-email-send,
+.login-btn-email-verify {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--dt-dark-border);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.login-btn-email-send {
+  background: var(--dt-dark-text);
+  color: white;
+  box-shadow: var(--shadow-md);
+}
+
+.login-btn-email-send:hover:not(:disabled) {
+  transform: translate(-2px, -2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.login-btn-email-send:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.login-btn-email-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.login-btn-email-verify {
+  background: var(--dt-neon);
+  color: white;
+  border-color: #003d99;
+  box-shadow: 4px 4px 0px #003d99;
+}
+
+.login-btn-email-verify:hover:not(:disabled) {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px #003d99;
+}
+
+.login-btn-email-verify:active:not(:disabled) {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0px #003d99;
+}
+
+.login-btn-email-verify:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Messages */
+.login-message {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-bottom: var(--space-4);
+  animation: fadeInUp 0.3s var(--ease-out);
+  border: 2px solid;
+}
+
+.login-message-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+.login-message-success {
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #86efac;
+}
+
+/* Resend row */
+.login-resend-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  font-size: 0.8rem;
+}
+
+.login-resend-text {
+  color: var(--dt-dark-text-muted);
+}
+
+.login-resend-countdown {
+  color: var(--dt-dark-text-muted);
+  font-weight: 600;
+}
+
+.login-resend-btn {
+  color: var(--dt-neon);
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+  background: none;
+  border: none;
+  text-decoration: underline;
+  transition: color var(--transition-fast);
+}
+
+.login-resend-btn:hover {
+  color: var(--dt-neon-dark);
+}
+
+/* Spinner Animation */
+@keyframes loginSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.login-spinner {
+  animation: loginSpin 1s linear infinite;
+}
+
+/* ============================================
+   LOGIN PAGE RESPONSIVE ADJUSTMENTS
+   ============================================ */
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: var(--space-6);
+  }
+
+  .login-inapp-warning {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .login-inapp-warning-actions {
+    width: 100%;
+  }
+
+  .login-open-browser-btn,
+  .login-copy-link-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .login-otp-input {
+    font-size: 1.2rem;
+    letter-spacing: 6px;
+  }
+}
+
+/* ============================================
    DASHBOARD - REFINED BLUE THEME (CTV-PORTAL STYLE)
    ============================================ */
 
