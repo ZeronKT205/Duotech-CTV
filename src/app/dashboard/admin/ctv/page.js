@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Users, Lock, Unlock, X, Bell, Inbox, CreditCard, ExternalLink, ChevronRight } from 'lucide-react';
+import { Users, Lock, Unlock, X, Bell, Inbox, CreditCard, ExternalLink, ChevronRight, ShieldCheck, ShieldOff } from 'lucide-react';
 import { formatDate, formatCurrency } from '@/lib/utils';
 
 export default function AdminCTVPage() {
@@ -71,6 +71,28 @@ export default function AdminCTVPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive: !isActive }),
       });
+      fetchUsers();
+    } catch (err) { console.error(err); }
+  }
+
+  async function changeRole(user, newRole) {
+    const isPromote = newRole === 'admin';
+    const message = isPromote
+      ? `Nâng "${user.name}" lên Quản trị viên?\n\nTài khoản này sẽ có toàn quyền quản lý hệ thống.`
+      : `Hạ "${user.name}" xuống Cộng tác viên?\n\nTài khoản này sẽ mất quyền quản trị.`;
+    if (!window.confirm(message)) return;
+
+    try {
+      const res = await fetch(`/api/users/${user._id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Có lỗi xảy ra, vui lòng thử lại.');
+        return;
+      }
       fetchUsers();
     } catch (err) { console.error(err); }
   }
@@ -249,6 +271,14 @@ export default function AdminCTVPage() {
                               >
                                 {user.isActive ? <><Lock size={12} /> Khóa</> : <><Unlock size={12} /> Mở</>}
                               </button>
+                              <button
+                                className="dash-btn dash-btn-sm"
+                                onClick={() => changeRole(user, 'admin')}
+                                title="Nâng lên Quản trị viên"
+                                style={{ backgroundColor: '#ede9fe', color: '#5b21b6', border: '1px solid #ddd6fe', display: 'flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <ShieldCheck size={12} /> Nâng Admin
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -289,7 +319,20 @@ export default function AdminCTVPage() {
                             <td>—</td>
                             <td>{formatDate(user.createdAt)}</td>
                             <td><span className="dash-badge green">Hoạt động</span></td>
-                            <td>—</td>
+                            <td>
+                              {user._id === session?.user?.dbId ? (
+                                <span style={{ fontSize: '0.78rem', color: 'var(--dt-light-text-muted)', fontStyle: 'italic' }}>Bạn</span>
+                              ) : (
+                                <button
+                                  className="dash-btn dash-btn-sm dash-btn-outline"
+                                  onClick={() => changeRole(user, 'ctv')}
+                                  title="Hạ xuống Cộng tác viên"
+                                  style={{ display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}
+                                >
+                                  <ShieldOff size={12} /> Hạ xuống CTV
+                                </button>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </>

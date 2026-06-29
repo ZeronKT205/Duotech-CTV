@@ -20,8 +20,18 @@ export async function PATCH(request, { params }) {
       return Response.json({ error: 'User not found' }, { status: 404 });
     }
 
+    if (body.role !== undefined) {
+      if (!['admin', 'ctv'].includes(body.role)) {
+        return Response.json({ error: 'Vai trò không hợp lệ' }, { status: 400 });
+      }
+      // Prevent an admin from removing their own admin role (avoid self lock-out)
+      if (id === session.user.dbId && body.role !== 'admin') {
+        return Response.json({ error: 'Bạn không thể tự hạ quyền của chính mình' }, { status: 400 });
+      }
+      user.role = body.role;
+    }
+
     if (body.isActive !== undefined) user.isActive = body.isActive;
-    if (body.role) user.role = body.role;
 
     await user.save();
 
